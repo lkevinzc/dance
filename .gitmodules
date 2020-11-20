@@ -1,0 +1,3 @@
+[submodule "AdelaiDet"]
+	path = AdelaiDet
+	url = https://github.com/aim-uofa/AdelaiDet.git

@@ -2,9 +2,8 @@
 
 :construction: This repo is ***WIP***.
 
-| | |
-|:---:|:---:|
 |![](./assets/pipeline.png)|![](assets/demo.gif)|
+|:---:|:---:|
 |*DANCE's Pipeline*| *Illustration* |
 
 ## Get started

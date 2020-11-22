@@ -2,10 +2,10 @@
 
 :construction: This repo is ***WIP***.
 
-|pipeline|illustration|
-|---|---|
+| | |
+|:---:|:---:|
 |![](./assets/pipeline.png)|![](assets/demo.gif)|
-*How our DANCE works for instance segmentation*
+|*DANCE's Pipeline*| *Illustration* |
 
 ## Get started
 1. Prepare the environment (the scripts are just examples)

@@ -2,8 +2,10 @@
 
 :construction: This repo is ***WIP***.
 
-![](./assets/pipeline.png)
-*DANCE's instance segmentation pipeline*
+|pipeline|illustration|
+|---|---|
+|![](./assets/pipeline.png)|![](assets/demo.gif)|
+*How our DANCE works for instance segmentation*
 
 ## Get started
 1. Prepare the environment (the scripts are just examples)

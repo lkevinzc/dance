@@ -1,10 +1,15 @@
+"""
+ @ Created by: liuzichen@u.nus.edu
+ @ Date: 2020-02-17
+"""
+
 import logging
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from core.layers import DFConv2d, SmoothL1Loss, extreme_utils
+from core.layers import SmoothL1Loss, extreme_utils
 from core.modeling.fcose.utils import get_aux_extreme_points, get_extreme_points
 from core.structures import PolygonPoints
 from detectron2.layers import Conv2d, DeformConv, ModulatedDeformConv, cat

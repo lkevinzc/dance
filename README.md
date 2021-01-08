@@ -1,6 +1,6 @@
 # dance
 
-:construction: This repo is ***WIP***.
+:construction: This repo is ***Work-in-Progress (WIP) to clean up the codes***, please contact the author at `liuzichen@u.nus.edu` if you'd like to get the weights / raw codes as soon as possible!! :)
 
 |![](./assets/pipeline.png)|![](assets/demo.gif)|
 |:---:|:---:|
@@ -22,4 +22,9 @@
 4. Evaluate pre-trained model
    - Download from [here]()
    - put it at `output/r50_1x`
-   - evaluate: `python train_net.py --config-file configs/Dance_R_50_1x.yaml --eval-only MODEL.WEIGHTS ./output/r50_1x/model_final.pth`
+   - evaluate: 
+```bash
+python train_net.py --config-file configs/Dance_R_50_1x.yaml --eval-only MODEL.WEIGHTS ./output/r50_1x/model_final.pth
+
+python train_net.py --config-file configs/Dance_R_50_3x.yaml --eval-only MODEL.WEIGHTS ./output/r50_3x/model_final.pth
+```

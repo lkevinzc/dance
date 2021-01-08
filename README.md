@@ -20,12 +20,16 @@
    - `python -m pip install -e .`
    - `cd core/layers/extreme_utils && export CUDA_HOME="/usr/local/cuda-9.0" && python setup.py build_ext --inplace`
 3. Prepare dataset
-   - Download form [COCO official website]()
+   - Download form [COCO official website](https://cocodataset.org/#download)
    - put it at `datasets/coco`
-4. Evaluate pre-trained model
-   - Download from [here]()
-   - put it at `output/r50_1x`
-   - evaluate: 
+4. Download pre-trained model
+
+|model name|AP | AP50 | AP75|weights|
+|:---:|:---:|:---:|:---:|:---:|
+|dance_r50_3x|36.8|58.5|39.0| [link](https://drive.google.com/file/d/1nz_MozWzoTvc2R34Kxl5ny9GhQaFOISM/view?usp=sharing) |
+ *note*: put them under `output/`
+
+## Evaluation: 
 ```bash
-python train_net.py --config-file configs/Dance_R_50_3x.yaml --eval-only MODEL.WEIGHTS ./output/r50_3x/model_final.pth
+python train_net.py --config-file configs/Dance_R_50_3x.yaml --eval-only MODEL.WEIGHTS ./output/r50_3x_model_final.pth
 ```

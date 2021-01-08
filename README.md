@@ -27,6 +27,7 @@
 |model name|AP | AP50 | AP75|weights|
 |:---:|:---:|:---:|:---:|:---:|
 |dance_r50_3x|36.8|58.5|39.0| [link](https://drive.google.com/file/d/1nz_MozWzoTvc2R34Kxl5ny9GhQaFOISM/view?usp=sharing) |
+
  *note*: put them under `output/`
 
 ## Evaluation: 

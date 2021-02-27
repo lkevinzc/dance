@@ -12,7 +12,7 @@
    - Python 3.6.8 (developed & tested on this version)
      - `conda create --name dance python==3.6.8`
      - `conda deactivate && conda activate dance`
-   - PyTorch 1.5.1 with CUDA 10.1
+   - PyTorch 1.4 with CUDA 10.1
      - `conda install pytorch==1.4.0 torchvision==0.5.0 cudatoolkit=10.1 -c pytorch`
 2. Clone this project and install framework / package dependency
    - `git clone https://github.com/lkevinzc/dance && cd dance && pip install -r requirements && cd ..`

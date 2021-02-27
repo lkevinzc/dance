@@ -1,0 +1,27 @@
+_BASE_: "Base-DANCE.yaml"
+MODEL:
+  WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
+  RESNETS:
+    DEPTH: 101
+  EDGE_HEAD:
+    NAME: "EdgeSnakeFPNHead"
+    CONVS_DIM: 256
+    STRONG_FEAT: True
+    IN_FEATURES: ['p2', 'p3', 'p4', 'p5']
+  SNAKE_HEAD:
+    NUM_SAMPLING: 196
+    DETACH: True
+    INITIAL: 'box'
+    NEW_MATCHING: True
+    ATTENTION: True
+    INDIVIDUAL_SCALE: True
+SOLVER:
+  IMS_PER_BATCH: 6 # 2 GPUs
+  BASE_LR: 0.00375
+  STEPS: (660000, 700000)
+  MAX_ITER: 720000
+  CHECKPOINT_PERIOD: 5000
+OUTPUT_DIR: "output/coco/dance_r101_3x/"
+
+#DATASETS:
+#  TEST: ("coco_2017_test-dev",)

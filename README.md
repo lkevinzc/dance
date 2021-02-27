@@ -21,17 +21,20 @@
 3. Prepare dataset
    - Download form [COCO official website](https://cocodataset.org/#download)
    - put it at `dance/datasets/coco`
-4. Download pre-trained model
+4. Download pre-trained model (metrics on COCO test-dev)
 
-|  model name  |  AP   | AP50  | AP75  |                                          weights                                           |
-| :----------: | :---: | :---: | :---: | :----------------------------------------------------------------------------------------: |
-| dance_r50_3x | 36.8  | 58.5  | 39.0  | [link](https://drive.google.com/file/d/1nz_MozWzoTvc2R34Kxl5ny9GhQaFOISM/view?usp=sharing) |
+|  model name   |  AP   | AP50  | AP75  |                                          weights                                           |
+| :-----------: | :---: | :---: | :---: | :----------------------------------------------------------------------------------------: |
+| dance_r50_3x  | 36.8  | 58.5  | 39.0  | [link](https://drive.google.com/file/d/1oh0ZkBgnYu6t4dlPNlfxEnhWruA87DIt/view?usp=sharing) |
+| dance_r101_3x | 38.1  | 60.2  | 40.5  | [link](https://drive.google.com/file/d/1H5eyu06qBpyw-We7CYEs4IxpdZvouJBo/view?usp=sharing) |
 
  *note*: put them under `output/`
 
 ## Evaluation
 ```bash
 python train_net.py --config-file configs/Dance_R_50_3x.yaml --eval-only MODEL.WEIGHTS ./output/r50_3x_model_final.pth
+
+python train_net.py --config-file configs/Dance_R_101_3x.yaml --eval-only MODEL.WEIGHTS ./output/r101_3x_model_final.pth
 ```
 
 ## Discussion

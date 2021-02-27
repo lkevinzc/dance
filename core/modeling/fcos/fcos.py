@@ -7,8 +7,8 @@ from torch.nn import functional as F
 from detectron2.layers import ShapeSpec
 from detectron2.modeling.proposal_generator.build import PROPOSAL_GENERATOR_REGISTRY
 
-from core.layers import DFConv2d, IOULoss, EXTLoss
-from .fcose_outputs import FCOSEOutputs
+from core.layers import DFConv2d, IOULoss
+from .fcos_outputs import FCOSOutputs
 
 
 __all__ = ["FCOS"]
@@ -26,7 +26,7 @@ class Scale(nn.Module):
 
 
 @PROPOSAL_GENERATOR_REGISTRY.register()
-class FCOSE(nn.Module):
+class FCOS(nn.Module):
     def __init__(self, cfg, input_shape: Dict[str, ShapeSpec]):
         super().__init__()
         # fmt: off
@@ -47,7 +47,6 @@ class FCOSE(nn.Module):
         self.thresh_with_ctr      = cfg.MODEL.FCOS.THRESH_WITH_CTR
         # fmt: on
         self.iou_loss = IOULoss(cfg.MODEL.FCOS.LOC_LOSS_TYPE)
-        self.ext_loss = EXTLoss(cfg.MODEL.FCOS.EXT_LOSS_TYPE)
         # generate sizes of interest
         soi = []
         prev_size = -1
@@ -56,7 +55,7 @@ class FCOSE(nn.Module):
             prev_size = s
         soi.append([prev_size, INF])
         self.sizes_of_interest = soi
-        self.fcose_head = FCOSEHead(cfg, [input_shape[f] for f in self.in_features])
+        self.fcos_head = FCOSHead(cfg, [input_shape[f] for f in self.in_features])
 
     def forward(self, images, features, gt_instances):
         """
@@ -73,7 +72,7 @@ class FCOSE(nn.Module):
         """
         features = [features[f] for f in self.in_features]
         locations = self.compute_locations(features)
-        logits_pred, reg_pred, ex_pred, ctrness_pred, bbox_towers = self.fcose_head(features)
+        logits_pred, reg_pred, ctrness_pred, bbox_towers = self.fcos_head(features)
 
         if self.training:
             pre_nms_thresh = self.pre_nms_thresh_train
@@ -84,22 +83,20 @@ class FCOSE(nn.Module):
             pre_nms_topk = self.pre_nms_topk_test
             post_nms_topk = self.post_nms_topk_test
 
-        outputs = FCOSEOutputs(
+        outputs = FCOSOutputs(
             images,
             locations,
             logits_pred,
             reg_pred,
-            ex_pred,
             ctrness_pred,
             self.focal_loss_alpha,
             self.focal_loss_gamma,
             self.iou_loss,
-            self.ext_loss,
             self.center_sample,
             self.sizes_of_interest,
             self.strides,
             self.radius,
-            self.fcose_head.num_classes,
+            self.fcos_head.num_classes,
             pre_nms_thresh,
             pre_nms_topk,
             self.nms_thresh,
@@ -142,7 +139,7 @@ class FCOSE(nn.Module):
         return locations
 
 
-class FCOSEHead(nn.Module):
+class FCOSHead(nn.Module):
     def __init__(self, cfg, input_shape: List[ShapeSpec]):
         """
         Arguments:
@@ -192,10 +189,6 @@ class FCOSEHead(nn.Module):
             in_channels, 4, kernel_size=3,
             stride=1, padding=1
         )
-        self.extrm_pred = nn.Conv2d(
-            in_channels, 4, kernel_size=3,
-            stride=1, padding=1
-        )
         self.ctrness = nn.Conv2d(
             in_channels, 1, kernel_size=3,
             stride=1, padding=1
@@ -209,8 +202,7 @@ class FCOSEHead(nn.Module):
         for modules in [
             self.cls_tower, self.bbox_tower,
             self.share_tower, self.cls_logits,
-            self.bbox_pred, self.extrm_pred,
-            self.ctrness
+            self.bbox_pred, self.ctrness
         ]:
             for l in modules.modules():
                 if isinstance(l, nn.Conv2d):
@@ -222,12 +214,9 @@ class FCOSEHead(nn.Module):
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         torch.nn.init.constant_(self.cls_logits.bias, bias_value)
 
-        self.output_ex = False if cfg.MODEL.SNAKE_HEAD.INITIAL == 'box' else True
-
     def forward(self, x):
         logits = []
         bbox_reg = []
-        ex_reg = []
         ctrness = []
         bbox_towers = []
         for l, feature in enumerate(x):
@@ -237,14 +226,10 @@ class FCOSEHead(nn.Module):
 
             logits.append(self.cls_logits(cls_tower))
             ctrness.append(self.ctrness(bbox_tower))
-            if self.training or self.output_ex:
-                ex_reg.append(torch.tanh(self.extrm_pred(bbox_tower)))
-            else:
-                ex_reg.append(None)
             reg = self.bbox_pred(bbox_tower)
             if self.scales is not None:
                 reg = self.scales[l](reg)
             # Note that we use relu, as in the improved FCOS, instead of exp.
             bbox_reg.append(F.relu(reg))
 
-        return logits, bbox_reg, ex_reg, ctrness, bbox_towers
+        return logits, bbox_reg, ctrness, bbox_towers

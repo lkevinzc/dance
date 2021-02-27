@@ -1,5 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-# Adapted for polygon mask output
+# Adapted by Zichen Liu for customised mask output
+
 import contextlib
 import copy
 import io
@@ -40,12 +41,13 @@ class COCOEvaluator(DatasetEvaluator):
 
         self._cpu_device = torch.device("cpu")
         # this is hard-coded so that logging is normal
-        self._logger = logging.getLogger('detectron2.evaluation.coco_evaluation')
-
+        self._logger = logging.getLogger("detectron2.evaluation.coco_evaluation")
 
         self._metadata = MetadataCatalog.get(dataset_name)
         if not hasattr(self._metadata, "json_file"):
-            self._logger.warning(f"json_file was not found in MetaDataCatalog for '{dataset_name}'")
+            self._logger.warning(
+                f"json_file was not found in MetaDataCatalog for '{dataset_name}'"
+            )
 
             cache_path = os.path.join(output_dir, f"{dataset_name}_coco_format.json")
             self._metadata.json_file = cache_path
@@ -60,10 +62,10 @@ class COCOEvaluator(DatasetEvaluator):
         # performed using the COCO evaluation server).
         self._do_evaluation = "annotations" in self._coco_api.dataset
 
-        if 'BIT' in cfg.MODEL.DANCE.MASK_IN:
-            self.input_format = 'bit'
+        if "BIT" in cfg.MODEL.DANCE.MASK_IN:
+            self.input_format = "bit"
         else:
-            self.input_format = 'rle'
+            self.input_format = "rle"
 
     def reset(self):
         self._predictions = []
@@ -75,7 +77,9 @@ class COCOEvaluator(DatasetEvaluator):
             tuple[str]: tasks that can be evaluated under the given configuration.
         """
         tasks = ("bbox",)
-        if cfg.MODEL.MASK_ON:
+        if (
+            cfg.MODEL.MASK_ON and cfg.MODEL.DANCE.MASK_IN != "NO"
+        ):  # TODO: for pure box computation, speed test
             tasks = tasks + ("segm",)
         if cfg.MODEL.KEYPOINT_ON:
             tasks = tasks + ("keypoints",)
@@ -96,8 +100,9 @@ class COCOEvaluator(DatasetEvaluator):
             # TODO this is ugly
             if "instances" in output:
                 instances = output["instances"].to(self._cpu_device)
-                prediction["instances"] = instances_to_coco_json(instances,
-                                                                 input["image_id"], self.input_format)
+                prediction["instances"] = instances_to_coco_json(
+                    instances, input["image_id"], self.input_format
+                )
             if "proposals" in output:
                 prediction["proposals"] = output["proposals"].to(self._cpu_device)
             self._predictions.append(prediction)
@@ -135,12 +140,15 @@ class COCOEvaluator(DatasetEvaluator):
         Fill self._results with the metrics of the tasks.
         """
         self._logger.info("Preparing results for COCO format ...")
-        self._coco_results = list(itertools.chain(*[x["instances"] for x in self._predictions]))
+        self._coco_results = list(
+            itertools.chain(*[x["instances"] for x in self._predictions])
+        )
 
         # unmap the category ids for COCO
         if hasattr(self._metadata, "thing_dataset_id_to_contiguous_id"):
             reverse_id_mapping = {
-                v: k for k, v in self._metadata.thing_dataset_id_to_contiguous_id.items()
+                v: k
+                for k, v in self._metadata.thing_dataset_id_to_contiguous_id.items()
             }
             for result in self._coco_results:
                 category_id = result["category_id"]
@@ -166,8 +174,11 @@ class COCOEvaluator(DatasetEvaluator):
         for task in sorted(tasks):
             coco_eval = (
                 _evaluate_predictions_on_coco(
-                    self._logger, self._coco_api, self._coco_results, task,
-                    kpt_oks_sigmas=self._kpt_oks_sigmas
+                    self._logger,
+                    self._coco_api,
+                    self._coco_results,
+                    task,
+                    kpt_oks_sigmas=self._kpt_oks_sigmas,
                 )
                 if len(self._coco_results) > 0
                 else None  # cocoapi does not handle empty results very well
@@ -191,7 +202,9 @@ class COCOEvaluator(DatasetEvaluator):
             for prediction in self._predictions:
                 ids.append(prediction["image_id"])
                 boxes.append(prediction["proposals"].proposal_boxes.tensor.numpy())
-                objectness_logits.append(prediction["proposals"].objectness_logits.numpy())
+                objectness_logits.append(
+                    prediction["proposals"].objectness_logits.numpy()
+                )
 
             proposal_data = {
                 "boxes": boxes,
@@ -199,7 +212,9 @@ class COCOEvaluator(DatasetEvaluator):
                 "ids": ids,
                 "bbox_mode": bbox_mode,
             }
-            with PathManager.open(os.path.join(self._output_dir, "box_proposals.pkl"), "wb") as f:
+            with PathManager.open(
+                os.path.join(self._output_dir, "box_proposals.pkl"), "wb"
+            ) as f:
                 pickle.dump(proposal_data, f)
 
         if not self._do_evaluation:
@@ -245,11 +260,14 @@ class COCOEvaluator(DatasetEvaluator):
 
         # the standard metrics
         results = {
-            metric: float(coco_eval.stats[idx] * 100 if coco_eval.stats[idx] >= 0 else "nan")
+            metric: float(
+                coco_eval.stats[idx] * 100 if coco_eval.stats[idx] >= 0 else "nan"
+            )
             for idx, metric in enumerate(metrics)
         }
         self._logger.info(
-            "Evaluation results for {}: \n".format(iou_type) + create_small_table(results)
+            "Evaluation results for {}: \n".format(iou_type)
+            + create_small_table(results)
         )
         if not np.isfinite(sum(results.values())):
             self._logger.info("Note that some metrics cannot be computed.")
@@ -274,7 +292,9 @@ class COCOEvaluator(DatasetEvaluator):
         # tabulate it
         N_COLS = min(6, len(results_per_category) * 2)
         results_flatten = list(itertools.chain(*results_per_category))
-        results_2d = itertools.zip_longest(*[results_flatten[i::N_COLS] for i in range(N_COLS)])
+        results_2d = itertools.zip_longest(
+            *[results_flatten[i::N_COLS] for i in range(N_COLS)]
+        )
         table = tabulate(
             results_2d,
             tablefmt="pipe",
@@ -293,8 +313,7 @@ def get_polygon_rles(polygons, image_shape):
     polygons = polygons.cpu().numpy()
     h, w = image_shape
     rles = [
-        mask_util.merge(mask_util.frPyObjects([p.tolist()], h, w))
-        for p in polygons
+        mask_util.merge(mask_util.frPyObjects([p.tolist()], h, w)) for p in polygons
     ]
     return rles
 
@@ -327,16 +346,23 @@ def instances_to_coco_json(instances, img_id, input_format):
     has_mask = instances.has("pred_masks")
     has_poly = instances.has("pred_polys")
     if has_mask or has_poly:
+        # use RLE to encode the masks, because they are too large and takes memory
+        # since this evaluator stores outputs of the entire dataset
+
         if has_poly:
             output_height = instances.image_size[0]
             output_width = instances.image_size[1]
-            rles = get_polygon_rles(instances.pred_polys.flatten(), (output_height, output_width))
+            rles = get_polygon_rles(
+                instances.pred_polys.flatten(), (output_height, output_width)
+            )
         else:
-            if input_format == 'rle':  # input is directly in rle format from polygons
+            if input_format == "rle":  # input is directly in rle format from polygons
                 rles = instances.pred_masks
             else:
                 rles = [
-                    mask_util.encode(np.array(mask[:, :, None], order="F", dtype="uint8"))[0]
+                    mask_util.encode(
+                        np.array(mask[:, :, None], order="F", dtype="uint8")
+                    )[0]
                     for mask in instances.pred_masks
                 ]
 
@@ -377,7 +403,9 @@ def instances_to_coco_json(instances, img_id, input_format):
 
 # inspired from Detectron:
 # https://github.com/facebookresearch/Detectron/blob/a6a835f5b8208c45d0dce217ce9bbda915f44df7/detectron/datasets/json_dataset_evaluator.py#L255 # noqa
-def _evaluate_box_proposals(dataset_predictions, coco_api, thresholds=None, area="all", limit=None):
+def _evaluate_box_proposals(
+    dataset_predictions, coco_api, thresholds=None, area="all", limit=None
+):
     """
     Evaluate detection proposal recall metrics. This function is a much
     faster alternative to the official COCO API recall evaluation code. However,
@@ -486,7 +514,9 @@ def _evaluate_box_proposals(dataset_predictions, coco_api, thresholds=None, area
     }
 
 
-def _evaluate_predictions_on_coco(logger, coco_gt, coco_results, iou_type, kpt_oks_sigmas=None):
+def _evaluate_predictions_on_coco(
+    logger, coco_gt, coco_results, iou_type, kpt_oks_sigmas=None
+):
     """
     Evaluate the coco results using COCOEval API.
     """

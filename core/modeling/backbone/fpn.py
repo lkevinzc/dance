@@ -5,6 +5,9 @@ from detectron2.modeling.backbone import FPN, build_resnet_backbone
 from detectron2.modeling.backbone.build import BACKBONE_REGISTRY
 from torch import nn
 
+from .mobilenet import build_mnv2_backbone
+from .vovnet import build_vovnet_backbone
+
 
 class LastLevelP6P7(nn.Module):
     """
@@ -54,7 +57,12 @@ def build_fcos_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):
     Returns:
         backbone (Backbone): backbone module, must be a subclass of :class:`Backbone`.
     """
-    bottom_up = build_resnet_backbone(cfg, input_shape)
+    if cfg.MODEL.MOBILENET:
+        bottom_up = build_mnv2_backbone(cfg, input_shape)
+    elif cfg.MODEL.USE_VOVNET:
+        bottom_up = build_vovnet_backbone(cfg, input_shape)
+    else:
+        bottom_up = build_resnet_backbone(cfg, input_shape)
     in_features = cfg.MODEL.FPN.IN_FEATURES
     out_channels = cfg.MODEL.FPN.OUT_CHANNELS
     top_levels = cfg.MODEL.FCOS.TOP_LEVELS

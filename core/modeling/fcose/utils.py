@@ -1,7 +1,8 @@
 import numpy as np
 import torch
-from core.structures.pointset import ExtremePoints
+from core.structures.points_set import ExtremePoints
 from detectron2.structures.boxes import Boxes
+import pycocotools.mask as mask_util
 
 
 # unused
@@ -11,15 +12,23 @@ def get_octagon(ex):
     t, l, b, r = ex[0][1], ex[1][0], ex[2][1], ex[3][0]
     x = 8.
     octagon = [[min(ex[0][0] + w / x, r), ex[0][1], \
-                max(ex[0][0] - w / x, l), ex[0][1], \
-                ex[1][0], max(ex[1][1] - h / x, t), \
-                ex[1][0], min(ex[1][1] + h / x, b), \
-                max(ex[2][0] - w / x, l), ex[2][1], \
-                min(ex[2][0] + w / x, r), ex[2][1], \
-                ex[3][0], min(ex[3][1] + h / x, b), \
-                ex[3][0], max(ex[3][1] - h / x, t)
-                ]]
+              max(ex[0][0] - w / x, l), ex[0][1], \
+              ex[1][0], max(ex[1][1] - h / x, t), \
+              ex[1][0], min(ex[1][1] + h / x, b), \
+              max(ex[2][0] - w / x, l), ex[2][1], \
+              min(ex[2][0] + w / x, r), ex[2][1], \
+              ex[3][0], min(ex[3][1] + h / x, b), \
+              ex[3][0], max(ex[3][1] - h / x, t)
+              ]]
     return octagon
+
+
+def extreme_point_to_octagon_mask(extreme_points, h, w):
+    octagon = get_octagon(extreme_points)
+    rles = mask_util.frPyObjects(octagon, h, w)
+    rle = mask_util.merge(rles)
+    mask = mask_util.decode(rle)
+    return mask
 
 
 def get_extreme_points(pts):
@@ -178,7 +187,6 @@ def get_aux_extreme_points(pts):
     ext_idxs = np.sort(np.unique(ext_idxs))
 
     return re_ordered_pts, ext_idxs
-
 
 def vis_training_targets(cfg, fcose_outputs, image_list, idx=0):
     import matplotlib.pyplot as plt

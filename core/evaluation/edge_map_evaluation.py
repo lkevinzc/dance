@@ -1,5 +1,4 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-# Adapted for binary edge prediction
 import itertools
 import json
 import logging
@@ -22,7 +21,9 @@ class EdgeMapEvaluator(DatasetEvaluator):
     Evaluate semantic segmentation
     """
 
-    def __init__(self, dataset_name, distributed, num_classes, ignore_label=255, output_dir=None):
+    def __init__(
+        self, dataset_name, distributed, num_classes, ignore_label=255, output_dir=None
+    ):
         """
         Args:
             dataset_name (str): name of the dataset to be evaluated.
@@ -71,12 +72,15 @@ class EdgeMapEvaluator(DatasetEvaluator):
                 segmentation prediction in the same format.
         """
         for input, output in zip(inputs, outputs):
+            # TODO: Just use 0.5 as threshold; should we change?
             output = (output["edge_map"] > 0.5).to(self._cpu_device)
             pred = np.array(output, dtype=np.int)
-            with PathManager.open(self.input_file_to_gt_file[input["file_name"]], "rb") as f:
+            with PathManager.open(
+                self.input_file_to_gt_file[input["file_name"]], "rb"
+            ) as f:
                 gt = np.array(Image.open(f), dtype=np.int)
 
-            gt[gt == self._ignore_label] = 0    # NOTE: 0 - background in edge map.
+            gt[gt == self._ignore_label] = 0  # NOTE: 0 - background in edge map.
 
             self._conf_matrix += np.bincount(
                 self._N * pred.reshape(-1) + gt.reshape(-1), minlength=self._N ** 2
@@ -151,7 +155,9 @@ class EdgeMapEvaluator(DatasetEvaluator):
             if self._contiguous_id_to_dataset_id is not None:
                 assert (
                     label in self._contiguous_id_to_dataset_id
-                ), "Label {} is not in the metadata info for {}".format(label, self._dataset_name)
+                ), "Label {} is not in the metadata info for {}".format(
+                    label, self._dataset_name
+                )
                 dataset_id = self._contiguous_id_to_dataset_id[label]
             else:
                 dataset_id = int(label)
@@ -159,6 +165,10 @@ class EdgeMapEvaluator(DatasetEvaluator):
             mask_rle = mask_util.encode(np.array(mask[:, :, None], order="F"))[0]
             mask_rle["counts"] = mask_rle["counts"].decode("utf-8")
             json_list.append(
-                {"file_name": input_file_name, "category_id": dataset_id, "segmentation": mask_rle}
+                {
+                    "file_name": input_file_name,
+                    "category_id": dataset_id,
+                    "segmentation": mask_rle,
+                }
             )
         return json_list

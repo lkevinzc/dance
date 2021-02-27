@@ -1,6 +1,5 @@
 # dance
 
-:construction: This repo is ***Work-in-Progress (WIP) to clean up the codes***, please contact the author at `liuzichen@u.nus.edu` if you'd like to get the weights / raw codes as soon as possible!! :)
 
 | ![](./assets/pipeline.png) | ![](assets/demo.gif) |
 | :------------------------: | :------------------: |
@@ -16,9 +15,9 @@
      - `conda install pytorch==1.4.0 torchvision==0.5.0 cudatoolkit=10.1 -c pytorch`
 2. Clone this project and install framework / package dependency
    - clone dance and install dependencies: `git clone https://github.com/lkevinzc/dance && cd dance && pip install -r requirements.txt && cd ..`
-   - clone Detectron2 and install v0.1:
-   - `git clone https://github.com/facebookresearch/detectron2.git && cd detectron2 && git checkout 1a7daee064eeca2d7fddce4ba74b74183ba1d4a0 && python -m pip install -e . && cd ..`
-   - `cd dance/core/layers/extreme_utils && export CUDA_HOME="/usr/local/cuda-9.0" && python setup.py build_ext --inplace`
+   - clone Detectron2 and install v0.1: `git clone https://github.com/facebookresearch/detectron2.git && cd detectron2 && git checkout 1a7daee064eeca2d7fddce4ba74b74183ba1d4a0 && python -m pip install -e . && cd ..`
+   - install cpp utils: `cd dance/core/layers/extreme_utils && export CUDA_HOME="/usr/local/cuda-10.1" && python setup.py build_ext --inplace`
+   - install pycocotools: `pip install cython; pip install 'git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI'`
 3. Prepare dataset
    - Download form [COCO official website](https://cocodataset.org/#download)
    - put it at `dance/datasets/coco`
@@ -30,7 +29,24 @@
 
  *note*: put them under `output/`
 
-## Evaluation: 
+## Evaluation
 ```bash
 python train_net.py --config-file configs/Dance_R_50_3x.yaml --eval-only MODEL.WEIGHTS ./output/r50_3x_model_final.pth
 ```
+
+## Discussion
+Any discussion or suggestion is welcomed! Feel free to contact the author via `liuzichen@u.nus.edu`  :)
+
+## Citation
+If you find this project helpful for your research, please consider citing using BibTeX below:
+```tex
+@InProceedings{liu2021dance,
+    author    = {Liu, Zichen and Liew, Jun Hao and Chen, Xiangyu and Feng, Jiashi},
+    title     = {DANCE: A Deep Attentive Contour Model for Efficient Instance Segmentation},
+    booktitle = {Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV)},
+    month     = {January},
+    year      = {2021},
+    pages     = {345-354}
+}
+```
+

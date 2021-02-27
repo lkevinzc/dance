@@ -1,20 +1,17 @@
+import logging
 import torch
 import torch.nn.functional as F
-import numpy as np
 
 from detectron2.layers import cat
 from detectron2.structures import Instances, Boxes
-from detectron2.utils.comm import get_world_size
+from core.utils.comm import get_world_size
 from fvcore.nn import sigmoid_focal_loss_jit
 
 from core.utils.comm import reduce_sum
 from core.layers import ml_nms
-from core.structures import ExtremePoints
 
-from .utils import get_extreme_points
 
-__all__ = ["FCOSEOutputs"]
-
+logger = logging.getLogger(__name__)
 
 INF = 100000000
 
@@ -51,18 +48,15 @@ def compute_ctrness_targets(reg_targets):
     return torch.sqrt(ctrness)
 
 
-def fcose_losses(
+def fcos_losses(
         labels,
         reg_targets,
-        ext_targets,
         logits_pred,
         reg_pred,
-        ext_pred,
         ctrness_pred,
         focal_loss_alpha,
         focal_loss_gamma,
         iou_loss,
-        ext_loss
 ):
     num_classes = logits_pred.size(1)
     labels = labels.flatten()
@@ -75,7 +69,7 @@ def fcose_losses(
 
     # prepare one_hot
     class_target = torch.zeros_like(logits_pred)
-    class_target[pos_inds, labels[pos_inds]] = 1    # background-0; C binary cls
+    class_target[pos_inds, labels[pos_inds]] = 1
 
     class_loss = sigmoid_focal_loss_jit(
         logits_pred,
@@ -87,19 +81,11 @@ def fcose_losses(
 
     reg_pred = reg_pred[pos_inds]
     reg_targets = reg_targets[pos_inds]
-    ext_pred = ext_pred[pos_inds]
-    ext_targets = ext_targets[pos_inds]
     ctrness_pred = ctrness_pred[pos_inds]
 
     ctrness_targets = compute_ctrness_targets(reg_targets)
     ctrness_targets_sum = ctrness_targets.sum()
     ctrness_norm = max(reduce_sum(ctrness_targets_sum).item() / num_gpus, 1e-6)
-
-    ext_pt_loss = ext_loss(
-        ext_pred,
-        ext_targets,
-        ctrness_targets
-    ) / ctrness_norm
 
     reg_loss = iou_loss(
         reg_pred,
@@ -116,25 +102,22 @@ def fcose_losses(
     losses = {
         "loss_fcos_cls": class_loss,
         "loss_fcos_loc": reg_loss,
-        "loss_fcos_ctr": ctrness_loss,
-        "loss_ext_pts": ext_pt_loss
+        "loss_fcos_ctr": ctrness_loss
     }
     return losses, {}
 
 
-class FCOSEOutputs(object):
+class FCOSOutputs(object):
     def __init__(
             self,
             images,
             locations,
             logits_pred,
             reg_pred,
-            ext_pred,
             ctrness_pred,
             focal_loss_alpha,
             focal_loss_gamma,
             iou_loss,
-            ext_loss,
             center_sample,
             sizes_of_interest,
             strides,
@@ -149,7 +132,6 @@ class FCOSEOutputs(object):
     ):
         self.logits_pred = logits_pred
         self.reg_pred = reg_pred
-        self.ext_pred = ext_pred
         self.ctrness_pred = ctrness_pred
         self.locations = locations
 
@@ -160,7 +142,6 @@ class FCOSEOutputs(object):
         self.focal_loss_alpha = focal_loss_alpha
         self.focal_loss_gamma = focal_loss_gamma
         self.iou_loss = iou_loss
-        self.ext_loss = ext_loss
         self.center_sample = center_sample
         self.sizes_of_interest = sizes_of_interest
         self.strides = strides
@@ -201,7 +182,6 @@ class FCOSEOutputs(object):
                 loc_to_size_range_per_level[None].expand(num_loc_list[l], -1)
             )
 
-        # (Sum_{levels_points}, 2)
         loc_to_size_range = torch.cat(loc_to_size_range, dim=0)
         locations = torch.cat(self.locations, dim=0)
 
@@ -209,7 +189,7 @@ class FCOSEOutputs(object):
             locations, self.gt_instances, loc_to_size_range
         )
 
-        # transpose image-major training_targets to level-major ones
+        # transpose im first training_targets to level first ones
         training_targets = {
             k: self._transpose(v, num_loc_list) for k, v in training_targets.items()
         }
@@ -253,27 +233,11 @@ class FCOSEOutputs(object):
         inside_gt_bbox_mask = center_bbox.min(-1)[0] > 0
         return inside_gt_bbox_mask
 
-    @staticmethod
-    def get_simple_extreme_points(polygons_lists):
-        ext_pts = torch.zeros([len(polygons_lists), 4])
-        for i, ins_polys in enumerate(polygons_lists):
-            if len(ins_polys):
-                flatten_polys = ins_polys[0]
-            else:
-                flatten_polys = np.concatenate(ins_polys)
-
-            flatten_polys = flatten_polys.reshape(-1, 2)
-            ext_pt = get_extreme_points(flatten_polys)
-            ext_pts[i] = torch.from_numpy(ext_pt)
-        return ext_pts
-
     def compute_targets_for_locations(self, locations, targets, size_ranges):
         labels = []
         reg_targets = []
-        ext_targets = []
         xs, ys = locations[:, 0], locations[:, 1]
 
-        # per image
         for im_i in range(len(targets)):
             targets_per_im = targets[im_i]
             bboxes = targets_per_im.gt_boxes.tensor
@@ -283,32 +247,14 @@ class FCOSEOutputs(object):
             if bboxes.numel() == 0:
                 labels.append(labels_per_im.new_zeros(locations.size(0)) + self.num_classes)
                 reg_targets.append(locations.new_zeros((locations.size(0), 4)))
-                ext_targets.append(locations.new_zeros((locations.size(0), 4)))
                 continue
 
-            # use this as a scaling
-            w = bboxes[:, 2] - bboxes[:, 0]
-            h = bboxes[:, 3] - bboxes[:, 1]
-
-            # [t_H_off, l_V_off, b_H_off, r_V_off]
-            ext_pts = self.get_simple_extreme_points(targets_per_im.gt_masks.polygons).to(bboxes.device)
-            t_H = (ext_pts[:, 0][None] - xs[:, None]) / w
-            l_V = (ext_pts[:, 1][None] - ys[:, None]) / h
-            b_H = (ext_pts[:, 2][None] - xs[:, None]) / w
-            r_V = (ext_pts[:, 3][None] - ys[:, None]) / h
-
-            ext_targets_per_im = torch.stack([t_H, l_V, b_H, r_V], dim=2)
-
-            # (num_instance, )
             area = targets_per_im.gt_boxes.area()
 
-            # (Sum{locations}, num_instance)
             l = xs[:, None] - bboxes[:, 0][None]
             t = ys[:, None] - bboxes[:, 1][None]
             r = bboxes[:, 2][None] - xs[:, None]
             b = bboxes[:, 3][None] - ys[:, None]
-
-            # (Sum{locations}, num_instance, 4)
             reg_targets_per_im = torch.stack([l, t, r, b], dim=2)
 
             if self.center_sample:
@@ -334,28 +280,25 @@ class FCOSEOutputs(object):
             locations_to_min_area, locations_to_gt_inds = locations_to_gt_area.min(dim=1)
 
             reg_targets_per_im = reg_targets_per_im[range(len(locations)), locations_to_gt_inds]
-            ext_targets_per_im = ext_targets_per_im[range(len(locations)), locations_to_gt_inds]
 
             labels_per_im = labels_per_im[locations_to_gt_inds]
-            labels_per_im[locations_to_min_area == INF] = self.num_classes  # set to background
+            labels_per_im[locations_to_min_area == INF] = self.num_classes
 
             labels.append(labels_per_im)
             reg_targets.append(reg_targets_per_im)
-            ext_targets.append(ext_targets_per_im)
 
-        return {"labels": labels, "reg_targets": reg_targets, "ext_targets": ext_targets}
+        return {"labels": labels, "reg_targets": reg_targets}
 
     def losses(self):
         """
-        Return the losses from a set of FCOSE predictions and their associated ground-truth.
+        Return the losses from a set of FCOS predictions and their associated ground-truth.
 
         Returns:
             dict[loss name -> loss value]: A dict mapping from loss name to loss value.
         """
 
         training_targets = self._get_ground_truth()
-        labels, reg_targets, ext_targets = training_targets["labels"], training_targets["reg_targets"], \
-                                           training_targets["ext_targets"],
+        labels, reg_targets = training_targets["labels"], training_targets["reg_targets"]
 
         # Collect all logits and regression predictions over feature maps
         # and images to arrive at the same shape as the labels and targets
@@ -371,12 +314,6 @@ class FCOSEOutputs(object):
                 # Reshape: (N, B, Hi, Wi) -> (N, Hi, Wi, B) -> (N*Hi*Wi, B)
                 x.permute(0, 2, 3, 1).reshape(-1, 4)
                 for x in self.reg_pred
-            ], dim=0,)
-        ext_pred = cat(
-            [
-                # Reshape: (N, B, Hi, Wi) -> (N, Hi, Wi, B) -> (N*Hi*Wi, B)
-                x.permute(0, 2, 3, 1).reshape(-1, 4)
-                for x in self.ext_pred
             ], dim=0,)
         ctrness_pred = cat(
             [
@@ -396,24 +333,15 @@ class FCOSEOutputs(object):
                 x.reshape(-1, 4) for x in reg_targets
             ], dim=0,)
 
-        ext_targets = cat(
-            [
-                # Reshape: (N, Hi, Wi, 4) -> (N*Hi*Wi, 4)
-                x.reshape(-1, 4) for x in ext_targets
-            ], dim=0, )
-
-        return fcose_losses(
+        return fcos_losses(
             labels,
             reg_targets,
-            ext_targets,
             logits_pred,
             reg_pred,
-            ext_pred,
             ctrness_pred,
             self.focal_loss_alpha,
             self.focal_loss_gamma,
-            self.iou_loss,
-            self.ext_loss
+            self.iou_loss
         )
 
     def predict_proposals(self):
@@ -421,29 +349,28 @@ class FCOSEOutputs(object):
 
         bundle = (
             self.locations, self.logits_pred,
-            self.reg_pred, self.ext_pred,
-            self.ctrness_pred, self.strides
+            self.reg_pred, self.ctrness_pred,
+            self.strides
         )
 
-        for i, (l, o, r, e, c, s) in enumerate(zip(*bundle)):
+        for i, (l, o, r, c, s) in enumerate(zip(*bundle)):
             # recall that during training, we normalize regression targets with FPN's stride.
             # we denormalize them here.
             r = r * s
             sampled_boxes.append(
                 self.forward_for_single_feature_map(
-                    l, o, r, e, c, self.image_sizes
+                    l, o, r, c, self.image_sizes
                 )
             )
 
         boxlists = list(zip(*sampled_boxes))
         boxlists = [Instances.cat(boxlist) for boxlist in boxlists]
         boxlists = self.select_over_all_levels(boxlists)
-
         return boxlists
 
     def forward_for_single_feature_map(
             self, locations, box_cls,
-            reg_pred, ext_pred, ctrness, image_sizes
+            reg_pred, ctrness, image_sizes
     ):
         N, C, H, W = box_cls.shape
 
@@ -452,9 +379,6 @@ class FCOSEOutputs(object):
         box_cls = box_cls.reshape(N, -1, C).sigmoid()
         box_regression = reg_pred.view(N, 4, H, W).permute(0, 2, 3, 1)
         box_regression = box_regression.reshape(N, -1, 4)
-        if ext_pred is not None:
-            ext_regression = ext_pred.view(N, 4, H, W).permute(0, 2, 3, 1)
-            ext_regression = ext_regression.reshape(N, -1, 4)
         ctrness = ctrness.view(N, 1, H, W).permute(0, 2, 3, 1)
         ctrness = ctrness.reshape(N, -1).sigmoid()
 
@@ -483,10 +407,6 @@ class FCOSEOutputs(object):
             per_box_regression = per_box_regression[per_box_loc]
             per_locations = locations[per_box_loc]
 
-            if ext_pred is not None:
-                per_ext_regression = ext_regression[i]
-                per_ext_regression = per_ext_regression[per_box_loc]
-
             per_pre_nms_top_n = pre_nms_top_n[i]
 
             if per_candidate_inds.sum().item() > per_pre_nms_top_n.item():
@@ -494,8 +414,6 @@ class FCOSEOutputs(object):
                     per_box_cls.topk(per_pre_nms_top_n, sorted=False)
                 per_class = per_class[top_k_indices]
                 per_box_regression = per_box_regression[top_k_indices]
-                if ext_pred is not None:
-                    per_ext_regression = per_ext_regression[top_k_indices]
                 per_locations = per_locations[top_k_indices]
 
             detections = torch.stack([
@@ -506,15 +424,10 @@ class FCOSEOutputs(object):
             ], dim=1)
 
             boxlist = Instances(image_sizes[i])
-            # print('size 2)', image_sizes[i])
             boxlist.pred_boxes = Boxes(detections)
             boxlist.scores = torch.sqrt(per_box_cls)
             boxlist.pred_classes = per_class
             boxlist.locations = per_locations
-            if ext_pred is not None:
-                boxlist.ext_points = ExtremePoints.from_boxes(boxlist.pred_boxes,
-                                                              per_ext_regression,
-                                                              per_locations)
 
             results.append(boxlist)
 

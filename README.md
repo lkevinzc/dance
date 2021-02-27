@@ -15,13 +15,13 @@
    - PyTorch 1.4 with CUDA 10.1
      - `conda install pytorch==1.4.0 torchvision==0.5.0 cudatoolkit=10.1 -c pytorch`
 2. Clone this project and install framework / package dependency
-   - `git clone https://github.com/lkevinzc/dance && cd dance && pip install -r requirements && cd ..`
-   - `git clone https://github.com/facebookresearch/detectron2.git && cd detectron2 && git checkout 1a7daee064eeca2d7fddce4ba74b74183ba1d4a0`
-   - `python -m pip install -e .`
-   - `cd core/layers/extreme_utils && export CUDA_HOME="/usr/local/cuda-9.0" && python setup.py build_ext --inplace`
+   - clone dance and install dependencies: `git clone https://github.com/lkevinzc/dance && cd dance && pip install -r requirements.txt && cd ..`
+   - clone Detectron2 and install v0.1:
+   - `git clone https://github.com/facebookresearch/detectron2.git && cd detectron2 && git checkout 1a7daee064eeca2d7fddce4ba74b74183ba1d4a0 && python -m pip install -e . && cd ..`
+   - `cd dance/core/layers/extreme_utils && export CUDA_HOME="/usr/local/cuda-9.0" && python setup.py build_ext --inplace`
 3. Prepare dataset
    - Download form [COCO official website](https://cocodataset.org/#download)
-   - put it at `datasets/coco`
+   - put it at `dance/datasets/coco`
 4. Download pre-trained model
 
 |  model name  |  AP   | AP50  | AP75  |                                          weights                                           |

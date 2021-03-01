@@ -38,7 +38,7 @@ python train_net.py --config-file configs/Dance_R_101_3x.yaml --eval-only MODEL.
 ```
 
 ## Discussion
-Any discussion or suggestion is welcomed! Feel free to contact the author via `liuzichen@u.nus.edu`  :)
+Any discussion or suggestion is welcome! Feel free to contact the author via `liuzichen@u.nus.edu`  :)
 
 ## Citation
 If you find this project helpful for your research, please consider citing using BibTeX below:

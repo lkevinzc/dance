@@ -5,6 +5,9 @@
 | :------------------------: | :------------------: |
 |     *DANCE's Pipeline*     |    *Illustration*    |
 
+### *note*
+The codes in `master` branch are mainly for experiments on COCO; if you want to have a look on the codes for experiments on SBD / Cityscapes, welcome to checkout the `snake` branch, which is developed based on [the codebase of previous art](https://github.com/zju3dv/snake).
+
 ## Get started
 1. Prepare the environment (the scripts are just examples)
    - gcc & g++ ≥ 5

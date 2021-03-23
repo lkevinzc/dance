@@ -1,83 +1,71 @@
-import os
-
-import detectron2.utils.comm as comm
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.engine import default_argument_parser, default_setup, launch
-from detectron2.evaluation import (
-    DatasetEvaluators,
-    verify_results
+from lib.config import cfg, args
+from lib.networks import make_network
+from lib.train import (
+    make_trainer,
+    make_optimizer,
+    make_lr_scheduler,
+    make_recorder,
+    set_lr_scheduler,
 )
-from detectron2.data import MetadataCatalog
-from detectron2.engine import DefaultTrainer
+from lib.datasets import make_data_loader
+from lib.utils.net_utils import load_model, save_model, load_network
+from lib.evaluators import make_evaluator
+import torch.multiprocessing
 
-# for datasets registration
-import core.data  # noqa
+import warnings
 
-from core.config import get_cfg
-from core.evaluation import (
-    COCOEvaluator,  # to prevent redundant conversion
-)
+warnings.filterwarnings("ignore", category=UserWarning)
 
+import logging
 
-class Trainer(DefaultTrainer):
-    @classmethod
-    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
-        if output_folder is None:
-            output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
-        evaluator_list = []
-        evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
-
-        if "coco" in evaluator_type:
-            evaluator_list.append(COCOEvaluator(dataset_name, cfg, True, output_folder))
-
-        if len(evaluator_list) == 0:
-            raise NotImplementedError(
-                "no Evaluator for the dataset {} with the type {}".format(
-                    dataset_name, evaluator_type
-                )
-            )
-        elif len(evaluator_list) == 1:
-            return evaluator_list[0]
-
-        return DatasetEvaluators(evaluator_list)
+logging.basicConfig(filename="./log/trainlog.log", level=logging.INFO)
 
 
-def setup(args):
-    cfg = get_cfg()
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
-    default_setup(cfg, args)
-    return cfg
+def train(cfg, network):
+    trainer = make_trainer(cfg, network)
+    optimizer = make_optimizer(cfg, network)
+    scheduler = make_lr_scheduler(cfg, optimizer)
+    recorder = make_recorder(cfg)
+    evaluator = make_evaluator(cfg)
+
+    begin_epoch = load_model(
+        network, optimizer, scheduler, recorder, cfg.model_dir, resume=cfg.resume
+    )
+    # set_lr_scheduler(cfg, scheduler)
+
+    train_loader = make_data_loader(cfg, is_train=True)
+    val_loader = make_data_loader(cfg, is_train=False)
+    for epoch in range(begin_epoch, cfg.train.epoch):
+        recorder.epoch = epoch
+        trainer.train(epoch, train_loader, optimizer, recorder)
+        scheduler.step()
+
+        if (epoch + 1) % cfg.save_ep == 0:
+            save_model(network, optimizer, scheduler, recorder, epoch, cfg.model_dir)
+
+        if (epoch + 1) % cfg.eval_ep == 0:
+            trainer.val(epoch, val_loader, evaluator, recorder)
+
+    return network
 
 
-def main(args):
-    cfg = setup(args)
+def test(cfg, network):
+    trainer = make_trainer(cfg, network)
+    val_loader = make_data_loader(cfg, is_train=False)
+    evaluator = make_evaluator(cfg)
+    epoch = load_network(
+        network, cfg.model_dir, resume=cfg.resume, epoch=cfg.test.epoch
+    )
+    trainer.val(epoch, val_loader, evaluator)
 
-    if args.eval_only:
-        model = Trainer.build_model(cfg)
-        DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
-            cfg.MODEL.WEIGHTS, resume=args.resume
-        )
-        res = Trainer.test(cfg, model)
-        if comm.is_main_process():
-            verify_results(cfg, res)
-        return res
 
-    trainer = Trainer(cfg)
-    trainer.resume_or_load(resume=args.resume)
-
-    return trainer.train()
+def main():
+    network = make_network(cfg)
+    if args.test:
+        test(cfg, network)
+    else:
+        train(cfg, network)
 
 
 if __name__ == "__main__":
-    args = default_argument_parser().parse_args()
-    print("Command Line Args:", args)
-    launch(
-        main,
-        args.num_gpus,
-        num_machines=args.num_machines,
-        machine_rank=args.machine_rank,
-        dist_url=args.dist_url,
-        args=(args,),
-    )
+    main()

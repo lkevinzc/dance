@@ -21,6 +21,7 @@ The codes in `master` branch are mainly for experiments on COCO; if you want to 
    - clone Detectron2 and install v0.1: `git clone https://github.com/facebookresearch/detectron2.git && cd detectron2 && git checkout 1a7daee064eeca2d7fddce4ba74b74183ba1d4a0 && python -m pip install -e . && cd ..`
    - install cpp utils: `cd dance/core/layers/extreme_utils && export CUDA_HOME="/usr/local/cuda-10.1" && python setup.py build_ext --inplace`
    - install pycocotools: `pip install cython; pip install 'git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI'`
+   - fix the `fvcore` version: `pip install fvcore==0.1.1.dev200512`
 3. Prepare dataset
    - Download form [COCO official website](https://cocodataset.org/#download)
    - put it at `dance/datasets/coco`

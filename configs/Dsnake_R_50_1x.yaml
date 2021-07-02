@@ -1,0 +1,8 @@
+_BASE_: "Base-dsnake.yaml"
+MODEL:
+  WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
+  RESNETS:
+    DEPTH: 50
+  EDGE_HEAD:
+    CONVS_DIM: 256
+OUTPUT_DIR: "output/coco/dsnake/R_50_1x/"

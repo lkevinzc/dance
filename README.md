@@ -1,5 +1,6 @@
 # dance
 
+A Deep Attentive Contour Model for Efficient Instance Segmentation ([PDF](https://openaccess.thecvf.com/content/WACV2021/html/Liu_DANCE_A_Deep_Attentive_Contour_Model_for_Efficient_Instance_Segmentation_WACV_2021_paper.html))
 
 | ![](./assets/pipeline.png) | ![](assets/demo.gif) |
 | :------------------------: | :------------------: |

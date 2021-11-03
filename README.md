@@ -1,4 +1,4 @@
-If you are interested in ML model serving, feel free to check out my another project on [model serving framework](https://github.com/mosecorg/mosec)!
+If you are interested in ML model serving, feel free to have a look at my another project on [model serving framework](https://github.com/mosecorg/mosec)!
 
 ---
 # dance
